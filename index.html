@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generador de ticket</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@1,900&family=Ubuntu+Condensed&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+  <!-- Exportar la tarjeta a PNG -->
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.js"></script>
+
+  <style>
+    /* =====================================================================
+       TOKENS
+       ===================================================================== */
+    :root {
+      /* Fondo del lienzo */
+      --orange:   #FF4303;
+      --peach:    #FE7740;
+      --red:      #F91E26;
+      --coral:    #FD6071;
+      --magenta:  #F2026D;
+      --pink:     #FC4891;
+
+      /* Tarjeta */
+      --card-bg:    #FEFEFE;
+      --divider:    #DADBE0;
+      --text:       #080808;
+      --text-teams: #101010;
+      --slate:      #3F4A66;
+      --odds-bg:    #F1F2F7;
+
+      --font-card:  'Ubuntu', 'Open Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-logo:  'Inter', 'Ubuntu', system-ui, sans-serif;
+      --font-badge: 'Ubuntu Condensed', 'Ubuntu', system-ui, sans-serif;
+
+      /* Interfaz del editor */
+      --ui-bg:     #EEF0F4;
+      --ui-panel:  #FFFFFF;
+      --ui-line:   #E2E5EB;
+      --ui-text:   #1B2030;
+      --ui-muted:  #5E6779;
+      --ui-accent: #FF4303;
+      --ui-focus:  rgba(255, 67, 3, .22);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--ui-bg);
+      color: var(--ui-text);
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    /* =====================================================================
+       EDITOR
+       ===================================================================== */
+    .topbar {
+      max-width: 1560px;
+      margin: 0 auto;
+      padding: 20px 24px 14px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .topbar h1 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+    .topbar p  { margin: 0; font-size: 13.5px; color: var(--ui-muted); }
+
+    .app {
+      max-width: 1560px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+      display: grid;
+      grid-template-columns: minmax(340px, 460px) minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--ui-panel);
+      border: 1px solid var(--ui-line);
+      border-radius: 16px;
+      padding: 18px;
+    }
+    .panel + .panel { margin-top: 16px; }
+    .panel__title {
+      margin: 0 0 14px;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .stack { display: grid; gap: 12px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid3 { display: grid; grid-template-columns: .8fr 1.25fr 1.25fr; gap: 10px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .field > label, .field > .label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ui-muted);
+    }
+
+    .input {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid #D5D9E1;
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ui-text);
+      font: inherit;
+      font-size: 14.5px;
+    }
+    .input:focus { outline: none; border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-focus); }
+    .input:disabled { background: #F5F6F8; color: var(--ui-muted); }
+
+    .check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ui-text); }
+    .check input { width: 16px; height: 16px; accent-color: var(--ui-accent); }
+
+    /* Selector segmentado (resultado de la pata) */
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: #F1F2F6;
+      border-radius: 10px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .seg--3 { grid-template-columns: repeat(3, 1fr); }
+    .seg button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      padding: 7px 6px;
+      border-radius: 8px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ui-muted);
+      cursor: pointer;
+    }
+    .seg button svg, .seg button .seg__img { width: 16px; height: 16px; flex: none; }
+    .seg__img { display: inline-block; background-size: contain; background-repeat: no-repeat; background-position: center; mix-blend-mode: multiply; }
+    .seg button[aria-pressed="true"] { background: #fff; color: var(--ui-text); box-shadow: 0 1px 2px rgba(16,24,40,.14); }
+    .seg button[data-v="won"][aria-pressed="true"]  { color: #1F7A33; }
+    .seg button[data-v="lost"][aria-pressed="true"] { color: #C4271B; }
+    .seg button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+
+    .leg { border: 1px solid var(--ui-line); border-radius: 14px; padding: 14px; }
+    .leg + .leg { margin-top: 12px; }
+    .leg__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .leg__title { font-weight: 700; font-size: 14px; }
+    .leg__actions { display: flex; gap: 6px; }
+
+    .iconbtn {
+      width: 32px; height: 32px;
+      display: inline-grid; place-items: center;
+      border: 1px solid var(--ui-line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ui-muted);
+      cursor: pointer;
+    }
+    .iconbtn:hover:not(:disabled) { color: var(--ui-text); border-color: #C9CED8; }
+    .iconbtn:disabled { opacity: .35; cursor: default; }
+    .iconbtn--danger:hover:not(:disabled) { color: #C4271B; border-color: #F4B4AE; }
+    .iconbtn svg { width: 16px; height: 16px; }
+
+    .btn {
+      height: 42px;
+      padding: 0 16px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 1px solid var(--ui-line);
+      border-radius: 11px;
+      background: #fff;
+      color: var(--ui-text);
+      font: inherit;
+      font-size: 14.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn:hover { border-color: #C9CED8; }
+    .btn--primary { border: 0; color: #fff; background: linear-gradient(135deg, #FF4303, #F2026D); }
+    .btn--primary:hover { filter: brightness(1.05); }
+    .btn--primary:disabled { opacity: .7; cursor: progress; }
+    .btn--add { width: 100%; margin-top: 12px; border-style: dashed; color: var(--ui-accent); }
+
+    .totals {
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      background: #F7F8FA;
+      border-radius: 10px;
+      font-size: 12.5px;
+      color: var(--ui-muted);
+    }
+    .totals strong { display: block; margin-top: 2px; font-size: 15px; color: var(--ui-text); }
+
+    .hint { font-size: 12.5px; font-weight: 500; color: var(--ui-muted); }
+
+    /* Subida del logo */
+    .logo-up {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      border: 1px dashed #CBD0DA;
+      border-radius: 12px;
+      transition: border-color .15s, background-color .15s;
+    }
+    .logo-up.is-drag { border-color: var(--ui-accent); background: #FFF5F0; }
+    .logo-up__thumb {
+      flex: none;
+      width: 64px; height: 64px;
+      display: grid; place-items: center;
+      border-radius: 10px;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--orange), var(--magenta));   /* se ve sobre el mismo fondo de la tarjeta */
+      color: rgba(255,255,255,.85);
+    }
+    .logo-up__thumb img { max-width: 86%; max-height: 86%; object-fit: contain; }
+    .logo-up__thumb svg { width: 24px; height: 24px; }
+    .logo-up__body { flex: 1; min-width: 0; display: grid; gap: 6px; }
+    .logo-up__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn--sm { height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13.5px; }
+    .btn:disabled { opacity: .45; cursor: default; }
+    .range { width: 100%; margin: 4px 0 0; accent-color: var(--ui-accent); }
+    [hidden] { display: none !important; }
+
+    .preview {
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow: auto;                       /* con muchas patas, la vista previa se desplaza sola */
+    }
+    /* La vista previa cabe en la pantalla; la imagen descargada siempre sale a 1024 px */
+    .preview .stage { width: min(1024px, 100%, calc(100vh - 150px)); }
+    .preview__bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .preview__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .select { height: 42px; padding: 0 10px; border: 1px solid var(--ui-line); border-radius: 11px; background: #fff; font: inherit; font-size: 14px; }
+
+    @media (max-width: 960px) {
+      .app { grid-template-columns: 1fr; }
+      .preview { position: static; order: -1; max-height: none; overflow: visible; }
+      .preview .stage { width: min(1024px, 100%); }
+    }
+    @media (max-width: 420px) {
+      .app { padding: 0 12px 40px; }
+      .topbar { padding: 16px 12px 12px; }
+      .grid3 { grid-template-columns: 1fr 1fr; }
+      .grid3 .field:first-child { grid-column: 1 / -1; }
+    }
+
+    /* =====================================================================
+       TARJETA (mismo diseño ajustado a la referencia)
+       Todo se mide en "unidades de diseño": --u = 1px de un lienzo de 1024px.
+       ===================================================================== */
+    .stage {
+      width: min(1024px, 100%);
+      margin: 0 auto;
+      container-type: inline-size;
+    }
+    /* Copia fuera de pantalla a 1024px exactos, la que se exporta */
+    .stage--export {
+      position: fixed;
+      left: -20000px;
+      top: 0;
+      width: 1024px;
+      pointer-events: none;
+    }
+
+    .canvas {
+      --u: calc(100cqw / 1024);
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      width: 100%;
+      min-height: 100cqw;                       /* cuadrado; crece si hay más patas */
+      display: flex;
+      flex-direction: column;
+      gap: max(12px, calc(var(--u) * 40));
+      padding: max(16px, calc(var(--u) * 50));
+      font-family: var(--font-card);
+      background: linear-gradient(180deg, var(--orange) 0%, var(--red) 50%, var(--magenta) 100%);
+    }
+    .canvas::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(180deg, var(--peach) 0%, var(--coral) 50%, var(--pink) 100%);
+      clip-path: polygon(67% 0, 100% 0, 100% 100%, 52.3% 100%, 60.9% 80%, 58.4% 20%);
+    }
+
+    .logo {
+      font-family: var(--font-logo);
+      color: #FFFFFF;
+      font-weight: 900;
+      font-style: italic;
+      font-size: max(28px, calc(var(--u) * 52));
+      line-height: 1;
+      letter-spacing: -0.02em;
+      overflow-wrap: anywhere;
+      display: flex;
+      align-items: center;
+      gap: max(10px, calc(var(--u) * 18));
+    }
+    .logo__text { min-width: 0; }
+    .logo__img {
+      display: block;
+      flex: none;
+      height: max(22px, calc(var(--u) * var(--logo-h, 64)));
+      width: auto;
+      max-width: 100%;
+      object-fit: contain;
+    }
+
+    .card {
+      flex: none;
+      margin-block: auto;                       /* con pocas patas, la tarjeta queda centrada en el lienzo */
+      display: flex;
+      flex-direction: column;
+      background: var(--card-bg);
+      border-radius: max(14px, calc(var(--u) * 22));
+      box-shadow: none;
+      color: var(--text);
+    }
+
+    .card__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: max(12px, calc(var(--u) * 21))
+               max(12px, calc(var(--u) * 18))
+               max(12px, calc(var(--u) * 21))
+               max(16px, calc(var(--u) * 24));
+      border-bottom: 1px solid var(--divider);
+    }
+    .card__title {
+      margin: 0;
+      font-size: max(18px, calc(var(--u) * 34));
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--text);
+    }
+    .card__stake { margin-left: .2em; }
+
+    .badge {
+      --badge-c:  #2E9440;
+      --badge-bg: #F4FEF6;
+      flex-shrink: 0;
+      background: var(--badge-bg);
+      border: 2px solid var(--badge-c);
+      border-radius: 50px;
+      color: var(--badge-c);
+      font-family: var(--font-badge);
+      font-weight: 700;                       /* negrita sintetizada sobre Ubuntu Condensed */
+      font-synthesis: weight;
+      -webkit-text-stroke: .4px currentColor;
+      font-size: max(16px, calc(var(--u) * 31));
+      line-height: 1;
+      padding: max(5px, calc(var(--u) * 9)) max(12px, calc(var(--u) * 21));
+    }
+    .badge--lost    { --badge-c: #D92D20; --badge-bg: #FEF3F2; }
+    .badge--pending { --badge-c: #3F4A66; --badge-bg: #F1F2F7; }
+
+    .sel {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      grid-template-areas:
+        "icon name   odds"
+        ".    market market"
+        ".    bottom bottom";
+      column-gap: max(10px, calc(var(--u) * 20));
+      align-content: center;
+      padding: max(14px, calc(var(--u) * 21)) max(16px, calc(var(--u) * 32)) max(14px, calc(var(--u) * 18));
+    }
+    .sel + .sel { border-top: 1px solid var(--divider); }
+
+    .sel__icon {
+      grid-area: icon;
+      align-self: center;
+      width:  max(28px, calc(var(--u) * 49));
+      height: max(28px, calc(var(--u) * 49));
+    }
+    .sel__icon svg { display: block; width: 100%; height: 100%; }
+    .sel__icon--football, .seg__img--football {
+      background: url("data:image/png;base64,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") center / contain no-repeat;
+      mix-blend-mode: multiply;
+    }
+
+    .sel__name {
+      grid-area: name;
+      align-self: center;
+      font-size: max(15px, calc(var(--u) * 28));
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+    .nw { white-space: nowrap; }
+    .sel__check {
+      display: inline-block;
+      vertical-align: -0.32em;
+      margin-left: max(8px, calc(var(--u) * 16));
+      width:  max(22px, calc(var(--u) * 40));
+      height: max(22px, calc(var(--u) * 40));
+    }
+
+    .sel__market {
+      grid-area: market;
+      margin-top: calc(var(--u) * 4);
+      font-size: max(14px, calc(var(--u) * 28));
+      font-weight: 400;
+      line-height: 1.1;
+      color: var(--slate);
+    }
+
+    .sel__bottom {
+      grid-area: bottom;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: max(6px, calc(var(--u) * 10));
+    }
+    .sel__teams {
+      font-size: max(14px, calc(var(--u) * 28));
+      font-weight: 400;
+      line-height: 1.1;
+      color: var(--text-teams);
+    }
+    .sel__teams span { display: block; }
+
+    .odds {
+      grid-area: odds;
+      align-self: center;
+      justify-self: end;
+      background: var(--odds-bg);
+      border-radius: 8px;
+      padding: max(8px, calc(var(--u) * 14)) max(12px, calc(var(--u) * 25));
+      font-size: max(14px, calc(var(--u) * 27));
+      font-weight: 700;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    /* Pastilla de marcador (reemplaza la fecha cuando hay marcador) */
+    .score {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: max(6px, calc(var(--u) * 9));
+      background: #EBEDFC;
+      color: #2B3244;
+      border-radius: 999px;
+      padding: max(6px, calc(var(--u) * 11)) max(12px, calc(var(--u) * 22));
+      font-size: max(13px, calc(var(--u) * 26));
+      font-weight: 400;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+    .score svg {
+      flex: none;
+      width:  max(14px, calc(var(--u) * 22));
+      height: max(14px, calc(var(--u) * 22));
+    }
+
+    .date {
+      flex-shrink: 0;
+      white-space: nowrap;
+      font-size: max(13px, calc(var(--u) * 29));
+      font-weight: 400;
+      line-height: 1.1;
+      color: var(--slate);
+    }
+
+    .summary {
+      display: flex;
+      flex-direction: column;
+      gap: max(4px, calc(var(--u) * 5));
+      padding: max(12px, calc(var(--u) * 12))
+               max(16px, calc(var(--u) * 30))
+               max(14px, calc(var(--u) * 19))
+               max(16px, calc(var(--u) * 24));
+      border-top: 1px solid var(--divider);
+    }
+    .summary__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      line-height: 1.2;
+      color: var(--text);
+    }
+    .summary__row .amount { font-weight: 700; font-size: max(16px, calc(var(--u) * 32)); }
+    .summary__row--bet   { font-size: max(15px, calc(var(--u) * 29)); font-weight: 400; }
+    .summary__row--total { font-size: max(16px, calc(var(--u) * 31)); font-weight: 700; }
+
+    .empty {
+      padding: max(20px, calc(var(--u) * 40)) max(16px, calc(var(--u) * 32));
+      color: var(--slate);
+      font-size: max(14px, calc(var(--u) * 26));
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <h1>Generador de ticket</h1>
+    <p>Edita el ticket y sus patas; la tarjeta se actualiza sola y se guarda en este navegador.</p>
+  </header>
+
+  <main class="app">
+
+    <!-- ===================== FORMULARIO ===================== -->
+    <div class="editor">
+      <section class="panel" aria-labelledby="t-ticket">
+        <h2 class="panel__title" id="t-ticket">Ticket</h2>
+        <div class="stack">
+          <div class="field">
+            <span class="label">Logo (imagen)</span>
+            <div class="logo-up" id="logoDrop">
+              <div class="logo-up__thumb" id="logoThumb" aria-hidden="true"></div>
+              <div class="logo-up__body">
+                <div class="logo-up__actions">
+                  <button type="button" class="btn btn--sm" id="logoPick">Subir imagen</button>
+                  <button type="button" class="btn btn--sm" id="logoClear">Quitar</button>
+                </div>
+                <span class="hint" id="logoHint">PNG con fondo transparente se ve mejor. También puedes arrastrarla aquí.</span>
+              </div>
+              <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" hidden>
+            </div>
+          </div>
+          <div class="field" id="logoSizeField">
+            <label for="f-logo-size">Tamaño del logo <span class="hint" id="logoSizeVal"></span></label>
+            <input type="range" id="f-logo-size" class="range" min="30" max="200" step="2">
+            <label class="check"><input type="checkbox" id="f-logo-text"> Mostrar también el texto junto al logo</label>
+          </div>
+          <div class="field">
+            <label for="f-logo">Texto superior (logo) <span class="hint" id="logoTextHint"></span></label>
+            <input id="f-logo" class="input" data-t="logo" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="f-stake">Monto apostado</label>
+            <input id="f-stake" class="input" data-t="stake" inputmode="numeric" autocomplete="off" placeholder="800.000">
+          </div>
+          <div class="field">
+            <span class="label">Ganancias</span>
+            <label class="check"><input type="checkbox" id="f-auto" data-t="autoPayout"> Calcular automáticamente (monto × cuota total)</label>
+            <input id="f-payout" class="input" data-t="payout" inputmode="numeric" autocomplete="off" aria-label="Ganancias">
+          </div>
+          <div class="totals" id="totals" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="t-legs">
+        <h2 class="panel__title" id="t-legs">Patas <span class="hint" id="legCount"></span></h2>
+        <div id="legs"></div>
+        <button type="button" class="btn btn--add" id="addLeg">+ Agregar pata</button>
+      </section>
+    </div>
+
+    <!-- ===================== VISTA PREVIA ===================== -->
+    <section class="preview" aria-label="Vista previa">
+      <div class="preview__bar">
+        <span class="hint" id="dims"></span>
+        <div class="preview__actions">
+          <select class="select" id="scale" aria-label="Resolución">
+            <option value="1">1024 px</option>
+            <option value="2">2048 px (2x)</option>
+          </select>
+          <button type="button" class="btn" id="reset">Restablecer</button>
+          <button type="button" class="btn btn--primary" id="download">Descargar PNG</button>
+        </div>
+      </div>
+      <div class="stage"><div class="canvas" id="previewCanvas"></div></div>
+    </section>
+  </main>
+
+  <!-- Copia a tamaño real para exportar -->
+  <div class="stage stage--export" aria-hidden="true"><div class="canvas" id="exportCanvas"></div></div>
+
+  <script>
+  (() => {
+    const STORAGE_KEY = 'generador-ticket-v1';
+
+    const DEFAULT_STATE = {
+      logo: 'BRANDLOGO',
+      logoImg: '',            // imagen del logo como data URL; vacío = se usa el texto
+      logoSize: 64,           // alto del logo en unidades del lienzo de 1024 px
+      logoShowText: false,
+      stake: 800000,
+      autoPayout: true,
+      payout: 1832000,
+      legs: [
+        { sport: 'football', pick: 'Real Betis Balompié', market: 'Gana cualquiera de los tiempos', home: 'Valencia CF', away: 'Real Betis Balompié', odds: '1.75', date: '2026-08-25', time: '14:00', score: '', result: 'won' },
+        { sport: 'football', pick: 'Más de 1.5', market: 'Goles totales Más/Menos', home: 'FK Bodo/Glimt', away: 'NEC Nijmegen', odds: '1.11', date: '2026-08-25', time: '14:00', score: '', result: 'won' },
+        { sport: 'football', pick: 'Más de 1.5', market: 'Goles totales Más/Menos', home: 'Linzer ASK', away: 'Celtic FC', odds: '1.18', date: '2026-08-25', time: '14:00', score: '', result: 'won' }
+      ]
+    };
+
+    /* Deportes: para agregar otro, suma una entrada aquí y su ícono en sportIcon() */
+    const SPORTS = {
+      football:   { label: 'Fútbol',     sideA: 'Equipo local', sideB: 'Equipo visitante', pick: 'Real Betis Balompié', market: 'Resultado final',      score: '2-1' },
+      basketball: { label: 'Baloncesto', sideA: 'Equipo local', sideB: 'Equipo visitante', pick: '11+',                 market: 'Total de rebotes',     score: '68-64' },
+      tennis:     { label: 'Tenis',      sideA: 'Jugador 1',    sideB: 'Jugador 2',        pick: 'Carlos Alcaraz',      market: 'Ganador del partido',  score: '2-1' }
+    };
+    const sportOf = (l) => (SPORTS[l.sport] ? l.sport : 'football');
+
+    const RESULTS = [
+      { v: 'won',     label: 'Ganada' },
+      { v: 'lost',    label: 'Perdida' },
+      { v: 'void',    label: 'Nula' },
+      { v: 'pending', label: 'Pendiente' }
+    ];
+
+    /* ---------- estado ---------- */
+    let state = load();
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (s && Array.isArray(s.legs)) {
+            // tickets guardados antes de tener deportes: quedan como fútbol y sin marcador
+            s.legs = s.legs.map(l => ({ sport: 'football', score: '', ...l }));
+            return { logoImg: '', logoSize: 64, logoShowText: false, ...s };
+          }
+        }
+      } catch (e) { /* sin almacenamiento: usamos el ejemplo */ }
+      return structuredClone(DEFAULT_STATE);
+    }
+    function save() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); return true; } catch (e) { return false; }
+    }
+
+    /* ---------- utilidades ---------- */
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const digits = (s) => Number(String(s ?? '').replace(/\D/g, '')) || 0;
+    const fmtNum = (n) => new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(n);
+    const money = (n) => '$' + fmtNum(n);
+    const parseOdds = (s) => {
+      const n = parseFloat(String(s ?? '').replace(',', '.'));
+      return Number.isFinite(n) ? n : NaN;
+    };
+    const fmtDate = (d, t) => {
+      let out = '';
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) { const [y, m, dd] = d.split('-'); out = `${dd}/${m}/${y}`; }
+      if (t) out += (out ? ', ' : '') + t;
+      return out;
+    };
+
+    function calc() {
+      const legs = state.legs;
+      let prod = 1, anyLost = false, anyPending = false, oddsOk = true;
+      for (const l of legs) {
+        if (l.result === 'lost') anyLost = true;
+        if (l.result === 'pending') anyPending = true;
+        const o = l.result === 'void' ? 1 : parseOdds(l.odds);
+        if (!(o >= 1)) oddsOk = false; else prod *= o;
+      }
+      const total = Math.round(prod * 100) / 100;            // cuota total a 2 decimales
+      const status = !legs.length ? 'pending' : anyLost ? 'lost' : anyPending ? 'pending' : 'won';
+      const stake = Number(state.stake) || 0;
+      const auto = Math.round(stake * total);
+      const payout = status === 'lost' ? 0 : (state.autoPayout ? auto : (Number(state.payout) || 0));
+      return { total, status, auto, payout, oddsOk };
+    }
+
+    /* ---------- íconos ---------- */
+    function resultIcon(r) {
+      const base = (fill, path, label) =>
+        `<svg class="sel__check" viewBox="0 0 24 24" role="img" aria-label="${label}"><circle cx="12" cy="12" r="12" fill="${fill}"/><path d="${path}" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      if (r === 'won')  return base('#00932A', 'M6.6 12.4l3.6 3.6 7.2-7.4', 'Ganada');
+      if (r === 'lost') return base('#E02D3C', 'M8.2 8.2l7.6 7.6M15.8 8.2l-7.6 7.6', 'Perdida');
+      if (r === 'void') return base('#8A93A6', 'M7.5 12h9', 'Nula');
+      return '';
+    }
+    /* Ícono del deporte. Fútbol usa la imagen original; el resto son SVG nítidos a cualquier tamaño. */
+    function sportIcon(sport) {
+      const ink = '#2B2C30';
+      if (sport === 'basketball') return `
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21" fill="#FFB64A" stroke="${ink}" stroke-width="3.2"/>
+          <g fill="none" stroke="${ink}" stroke-width="2.8" stroke-linecap="round" transform="rotate(-38 24 24)">
+            <path d="M24 3v42M3 24h42"/>
+            <path d="M10 8.4c6.2 6.5 6.2 24.7 0 31.2M38 8.4c-6.2 6.5-6.2 24.7 0 31.2"/>
+          </g>
+        </svg>`;
+      if (sport === 'tennis') return `
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="21" fill="#ECFE50" stroke="${ink}" stroke-width="3.2"/>
+          <path d="M7 11.7c5.5 9.6 28.5 9.6 34 0M7 36.3c5.5-9.6 28.5-9.6 34 0" fill="none" stroke="${ink}" stroke-width="2.8" stroke-linecap="round"/>
+        </svg>`;
+      return '';
+    }
+    const SCORE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5" fill="currentColor"/><g fill="#FFFFFF"><rect x="6.4" y="9.6" width="2.7" height="8.6" rx=".6"/><rect x="10.65" y="6" width="2.7" height="12.2" rx=".6"/><rect x="14.9" y="12.4" width="2.7" height="5.8" rx=".6"/></g></svg>';
+
+    const ICONS = {
+      up:   '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/></svg>',
+      down: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3.5 8.5L8 13l4.5-4.5"/></svg>',
+      dup:  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.8"/><path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>',
+      del:  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h11M6.5 4V2.8h3V4M4 4l.7 9.2h6.6L12 4M6.8 6.8v4.2M9.2 6.8v4.2"/></svg>'
+    };
+
+    /* ---------- tarjeta ---------- */
+    function legHTML(l) {
+      const name = String(l.pick || '').trim();
+      const cut = name.lastIndexOf(' ');
+      const head = cut > 0 ? name.slice(0, cut + 1) : '';
+      const last = cut > 0 ? name.slice(cut + 1) : name;
+      const o = parseOdds(l.odds);
+      const oddsTxt = l.result === 'void' ? '1.00' : (o >= 1 ? o.toFixed(2) : '—');
+      const when = fmtDate(l.date, l.time);
+      const sport = sportOf(l);
+      const score = String(l.score || '').trim();
+      const right = score
+        ? `<span class="score">${SCORE_ICON}<span>Marcador ${esc(score)}</span></span>`
+        : (when ? `<time class="date">${esc(when)}</time>` : '');
+      return `
+        <div class="sel">
+          <span class="sel__icon sel__icon--${sport}" aria-hidden="true">${sportIcon(sport)}</span>
+          <div class="sel__name">${esc(head)}<span class="nw">${esc(last)}${resultIcon(l.result)}</span></div>
+          <span class="odds">${oddsTxt}</span>
+          ${l.market ? `<div class="sel__market">${esc(l.market)}</div>` : ''}
+          <div class="sel__bottom">
+            <div class="sel__teams">${l.home ? `<span>${esc(l.home)}</span>` : ''}${l.away ? `<span>${esc(l.away)}</span>` : ''}</div>
+            ${right}
+          </div>
+        </div>`;
+    }
+
+    const hasLogoImg = () => /^data:image\/(png|jpeg|webp);base64,/.test(state.logoImg || '');
+
+    function logoHTML() {
+      const text = String(state.logo || '').trim();
+      if (!hasLogoImg()) return `<div class="logo"><span class="logo__text">${esc(state.logo)}</span></div>`;
+      const h = Number(state.logoSize) || 64;
+      return `<div class="logo" style="--logo-h:${h}"><img class="logo__img" src="${state.logoImg}" alt="${esc(text || 'Logo')}">${state.logoShowText && text ? `<span class="logo__text">${esc(text)}</span>` : ''}</div>`;
+    }
+
+    function cardHTML() {
+      const n = state.legs.length;
+      const { status, payout } = calc();
+      const title = n === 1 ? 'Sencilla' : `Combinada de ${n}`;
+      const badge = { won: 'Ganada', lost: 'Perdida', pending: 'Pendiente' }[status];
+      const payoutLabel = status === 'pending' ? 'Ganancias posibles' : 'Ganancias';
+      return `
+        ${logoHTML()}
+        <article class="card">
+          <header class="card__header">
+            <h2 class="card__title">${title} <span class="card__stake">${money(Number(state.stake) || 0)}</span></h2>
+            <span class="badge badge--${status}">${badge}</span>
+          </header>
+          <section class="selections">
+            ${n ? state.legs.map(legHTML).join('') : '<div class="empty">Agrega una pata para empezar.</div>'}
+          </section>
+          <footer class="summary">
+            <div class="summary__row summary__row--bet"><span>Apuesta</span><span class="amount">${money(Number(state.stake) || 0)}</span></div>
+            <div class="summary__row summary__row--total"><span>${payoutLabel}</span><span class="amount">${money(payout)}</span></div>
+          </footer>
+        </article>`;
+    }
+
+    const previewCanvas = document.getElementById('previewCanvas');
+    const exportCanvas  = document.getElementById('exportCanvas');
+
+    function renderCard() {
+      const html = cardHTML();
+      previewCanvas.innerHTML = html;
+      exportCanvas.innerHTML = html;
+      renderTotals();
+      requestAnimationFrame(() => {
+        const r = exportCanvas.getBoundingClientRect();
+        document.getElementById('dims').textContent = `Imagen: ${Math.round(r.width)} × ${Math.round(r.height)} px`;
+      });
+    }
+
+    /* ---------- formulario ---------- */
+    const $logo = document.getElementById('f-logo');
+    const $stake = document.getElementById('f-stake');
+    const $auto = document.getElementById('f-auto');
+    const $payout = document.getElementById('f-payout');
+    const $legs = document.getElementById('legs');
+
+    const $logoFile = document.getElementById('logoFile');
+    const $logoDrop = document.getElementById('logoDrop');
+    const $logoSize = document.getElementById('f-logo-size');
+    const $logoText = document.getElementById('f-logo-text');
+
+    function renderLogoControls() {
+      const has = hasLogoImg();
+      document.getElementById('logoThumb').innerHTML = has
+        ? `<img src="${state.logoImg}" alt="">`
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 9"/></svg>';
+      document.getElementById('logoPick').textContent = has ? 'Cambiar imagen' : 'Subir imagen';
+      document.getElementById('logoClear').disabled = !has;
+      document.getElementById('logoSizeField').hidden = !has;
+      $logoSize.value = Number(state.logoSize) || 64;
+      document.getElementById('logoSizeVal').textContent = `· ${$logoSize.value}`;
+      $logoText.checked = !!state.logoShowText;
+      document.getElementById('logoTextHint').textContent = has && !state.logoShowText ? '· oculto mientras uses la imagen' : '';
+    }
+
+    /* Convierte el archivo en un PNG liviano: lo escala (máx. 400 px de alto),
+       recorta los bordes transparentes y lo deja listo para guardar y exportar. */
+    async function fileToLogo(file) {
+      if (!file || !/^image\//.test(file.type)) throw new Error('tipo');
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+        let w = img.naturalWidth || 800, h = img.naturalHeight || 300;
+        const isSvg = file.type === 'image/svg+xml';
+        const k = isSvg ? Math.min(400 / h, 1600 / w) : Math.min(1, 400 / h, 1600 / w);
+        w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, w, h);
+        // recortar márgenes transparentes para que el logo quede alineado al borde
+        const px = ctx.getImageData(0, 0, w, h).data;
+        let x0 = w, y0 = h, x1 = -1, y1 = -1;
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          if (px[(y * w + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+        }
+        if (x1 < 0) throw new Error('vacia');
+        if (x0 > 0 || y0 > 0 || x1 < w - 1 || y1 < h - 1) {
+          const t = document.createElement('canvas'); t.width = x1 - x0 + 1; t.height = y1 - y0 + 1;
+          t.getContext('2d').drawImage(c, x0, y0, t.width, t.height, 0, 0, t.width, t.height);
+          return t.toDataURL('image/png');
+        }
+        return c.toDataURL('image/png');
+      } finally { URL.revokeObjectURL(url); }
+    }
+
+    async function setLogoFromFile(file) {
+      const hint = document.getElementById('logoHint');
+      try {
+        hint.textContent = 'Procesando imagen…';
+        state.logoImg = await fileToLogo(file);
+        renderLogoControls();
+        renderCard();
+        hint.textContent = save()
+          ? 'Logo listo. Ajusta el tamaño si hace falta.'
+          : 'Logo listo, pero es muy pesado para guardarse en el navegador: se perderá al recargar.';
+      } catch (e) {
+        hint.textContent = 'No se pudo leer esa imagen. Prueba con un PNG, JPG, SVG o WebP.';
+      }
+    }
+
+    function renderTicketFields() {
+      renderLogoControls();
+      $logo.value = state.logo;
+      $stake.value = state.stake ? fmtNum(state.stake) : '';
+      $auto.checked = !!state.autoPayout;
+      syncPayoutField();
+    }
+
+    function syncPayoutField() {
+      const { auto } = calc();
+      $payout.disabled = !!state.autoPayout;
+      if (state.autoPayout) $payout.value = fmtNum(auto);
+    }
+
+    function renderTotals() {
+      const { total, status, payout, oddsOk } = calc();
+      const label = { won: 'Ganada', lost: 'Perdida', pending: 'Pendiente' }[status];
+      document.getElementById('totals').innerHTML =
+        `<div>Cuota total<strong>${oddsOk ? total.toFixed(2) : 'Revisa las cuotas'}</strong></div>` +
+        `<div>Estado<strong>${label}</strong></div>` +
+        `<div>Ganancias<strong>${money(payout)}</strong></div>`;
+      if (state.autoPayout) $payout.value = fmtNum(calc().auto);
+    }
+
+    function legFormHTML(l, i, n) {
+      const seg = RESULTS.map(r =>
+        `<button type="button" data-i="${i}" data-act="result" data-v="${r.v}" aria-pressed="${l.result === r.v}">${r.label}</button>`).join('');
+      const sport = sportOf(l), S = SPORTS[sport];
+      const sportSeg = Object.entries(SPORTS).map(([k, s]) =>
+        `<button type="button" data-i="${i}" data-act="sport" data-v="${k}" aria-pressed="${sport === k}">${k === 'football' ? '<span class="seg__img seg__img--football"></span>' : sportIcon(k)}${s.label}</button>`).join('');
+      return `
+        <div class="leg" data-leg="${i}">
+          <div class="leg__head">
+            <span class="leg__title">Pata ${i + 1}</span>
+            <div class="leg__actions">
+              <button type="button" class="iconbtn" data-i="${i}" data-act="up" title="Subir" aria-label="Subir pata ${i + 1}" ${i === 0 ? 'disabled' : ''}>${ICONS.up}</button>
+              <button type="button" class="iconbtn" data-i="${i}" data-act="down" title="Bajar" aria-label="Bajar pata ${i + 1}" ${i === n - 1 ? 'disabled' : ''}>${ICONS.down}</button>
+              <button type="button" class="iconbtn" data-i="${i}" data-act="dup" title="Duplicar" aria-label="Duplicar pata ${i + 1}">${ICONS.dup}</button>
+              <button type="button" class="iconbtn iconbtn--danger" data-i="${i}" data-act="del" title="Eliminar" aria-label="Eliminar pata ${i + 1}">${ICONS.del}</button>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="field"><span class="label">Deporte</span><div class="seg seg--3" role="group" aria-label="Deporte de la pata ${i + 1}">${sportSeg}</div></div>
+            <div class="field"><label for="p${i}-pick">Selección</label><input id="p${i}-pick" class="input" data-i="${i}" data-f="pick" value="${esc(l.pick)}" placeholder="${esc(S.pick)}"></div>
+            <div class="field"><label for="p${i}-market">Mercado</label><input id="p${i}-market" class="input" data-i="${i}" data-f="market" value="${esc(l.market)}" placeholder="${esc(S.market)}"></div>
+            <div class="grid2">
+              <div class="field"><label for="p${i}-home">${S.sideA}</label><input id="p${i}-home" class="input" data-i="${i}" data-f="home" value="${esc(l.home)}"></div>
+              <div class="field"><label for="p${i}-away">${S.sideB}</label><input id="p${i}-away" class="input" data-i="${i}" data-f="away" value="${esc(l.away)}"></div>
+            </div>
+            <div class="grid3">
+              <div class="field"><label for="p${i}-odds">Cuota</label><input id="p${i}-odds" class="input" data-i="${i}" data-f="odds" value="${esc(l.odds)}" inputmode="decimal" placeholder="1.50"></div>
+              <div class="field"><label for="p${i}-date">Fecha</label><input id="p${i}-date" class="input" type="date" data-i="${i}" data-f="date" value="${esc(l.date)}"></div>
+              <div class="field"><label for="p${i}-time">Hora</label><input id="p${i}-time" class="input" type="time" data-i="${i}" data-f="time" value="${esc(l.time)}"></div>
+            </div>
+            <div class="field"><label for="p${i}-score">Marcador <span class="hint">· opcional, si lo llenas reemplaza la fecha en la tarjeta</span></label><input id="p${i}-score" class="input" data-i="${i}" data-f="score" value="${esc(l.score)}" placeholder="${esc(S.score)}" autocomplete="off"></div>
+            <div class="field"><span class="label">Resultado</span><div class="seg" role="group" aria-label="Resultado de la pata ${i + 1}">${seg}</div></div>
+          </div>
+        </div>`;
+    }
+
+    function renderLegs() {
+      const n = state.legs.length;
+      $legs.innerHTML = state.legs.map((l, i) => legFormHTML(l, i, n)).join('');
+      document.getElementById('legCount').textContent = n === 1 ? '1 pata' : `${n} patas`;
+    }
+
+    function update({ legs = false } = {}) {
+      if (legs) renderLegs();
+      renderCard();
+      save();
+    }
+
+    /* ---------- eventos ---------- */
+    $logo.addEventListener('input', () => { state.logo = $logo.value; update(); });
+
+    document.getElementById('logoPick').addEventListener('click', () => $logoFile.click());
+    $logoFile.addEventListener('change', () => { if ($logoFile.files[0]) setLogoFromFile($logoFile.files[0]); $logoFile.value = ''; });
+    document.getElementById('logoClear').addEventListener('click', () => {
+      state.logoImg = '';
+      document.getElementById('logoHint').textContent = 'PNG con fondo transparente se ve mejor. También puedes arrastrarla aquí.';
+      renderLogoControls();
+      update();
+    });
+    $logoSize.addEventListener('input', () => { state.logoSize = Number($logoSize.value); renderLogoControls(); update(); });
+    $logoText.addEventListener('change', () => { state.logoShowText = $logoText.checked; renderLogoControls(); update(); });
+    ['dragenter', 'dragover'].forEach(ev => $logoDrop.addEventListener(ev, (e) => { e.preventDefault(); $logoDrop.classList.add('is-drag'); }));
+    ['dragleave', 'drop'].forEach(ev => $logoDrop.addEventListener(ev, (e) => { e.preventDefault(); $logoDrop.classList.remove('is-drag'); }));
+    $logoDrop.addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) setLogoFromFile(f); });
+    $stake.addEventListener('input', () => { state.stake = digits($stake.value); syncPayoutField(); update(); });
+    $stake.addEventListener('blur', () => { $stake.value = state.stake ? fmtNum(state.stake) : ''; });
+    $auto.addEventListener('change', () => {
+      state.autoPayout = $auto.checked;
+      if (!state.autoPayout) state.payout = calc().auto;    // arranca desde el valor calculado
+      syncPayoutField();
+      if (!state.autoPayout) $payout.focus();
+      update();
+    });
+    $payout.addEventListener('input', () => { state.payout = digits($payout.value); update(); });
+    $payout.addEventListener('blur', () => { if (!state.autoPayout) $payout.value = state.payout ? fmtNum(state.payout) : ''; });
+
+    $legs.addEventListener('input', (e) => {
+      const t = e.target;
+      if (!t.dataset.f) return;
+      state.legs[+t.dataset.i][t.dataset.f] = t.value;
+      update();
+    });
+
+    $legs.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-act]');
+      if (!b) return;
+      const i = +b.dataset.i, legs = state.legs;
+      switch (b.dataset.act) {
+        case 'result': legs[i].result = b.dataset.v; break;
+        case 'sport':  legs[i].sport = b.dataset.v; break;
+        case 'up':   if (i > 0) [legs[i - 1], legs[i]] = [legs[i], legs[i - 1]]; break;
+        case 'down': if (i < legs.length - 1) [legs[i + 1], legs[i]] = [legs[i], legs[i + 1]]; break;
+        case 'dup':  legs.splice(i + 1, 0, { ...legs[i] }); break;
+        case 'del':  legs.splice(i, 1); break;
+      }
+      update({ legs: true });
+      // devolver el foco a un botón equivalente tras redibujar
+      const again = $legs.querySelector(`button[data-act="${b.dataset.act}"][data-i="${Math.min(i, state.legs.length - 1)}"]${b.dataset.v ? `[data-v="${b.dataset.v}"]` : ''}`);
+      if (again && !again.disabled) again.focus();
+    });
+
+    document.getElementById('addLeg').addEventListener('click', () => {
+      const prev = state.legs[state.legs.length - 1];
+      state.legs.push({ sport: prev ? sportOf(prev) : 'football', pick: '', market: '', home: '', away: '', odds: '', date: prev ? prev.date : '', time: prev ? prev.time : '', score: '', result: 'won' });
+      update({ legs: true });
+      const i = state.legs.length - 1;
+      const first = document.getElementById(`p${i}-pick`);
+      first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      first.focus({ preventScroll: true });
+    });
+
+    document.getElementById('reset').addEventListener('click', () => {
+      if (!confirm('¿Volver al ticket de ejemplo? Se perderán los cambios actuales (tu logo se conserva).')) return;
+      const keep = { logoImg: state.logoImg, logoSize: state.logoSize, logoShowText: state.logoShowText };
+      state = { ...structuredClone(DEFAULT_STATE), ...keep };
+      renderTicketFields();
+      update({ legs: true });
+    });
+
+    /* ---------- exportar ---------- */
+    document.getElementById('download').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      if (!window.htmlToImage) { alert('No se pudo cargar el exportador. Revisa tu conexión a internet y recarga la página.'); return; }
+      const scale = Number(document.getElementById('scale').value) || 1;
+      btn.disabled = true; btn.textContent = 'Generando…';
+      try {
+        await document.fonts.ready;
+        const dataUrl = await htmlToImage.toPng(exportCanvas, { pixelRatio: scale, cacheBust: true });
+        const n = state.legs.length;
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `ticket-${n === 1 ? 'sencilla' : 'combinada-' + n}-${new Date().toISOString().slice(0, 10)}.png`;
+        document.body.appendChild(a); a.click(); a.remove();
+      } catch (err) {
+        console.error(err);
+        alert('No se pudo generar la imagen. Intenta de nuevo; si persiste, recarga la página.');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Descargar PNG';
+      }
+    });
+
+    /* ---------- inicio ---------- */
+    renderTicketFields();
+    update({ legs: true });
+    document.fonts && document.fonts.ready.then(() => renderCard());
+  })();
+  </script>
+</body>
+</html>
